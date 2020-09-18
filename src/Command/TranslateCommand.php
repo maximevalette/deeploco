@@ -29,7 +29,8 @@ class TranslateCommand extends Command
             ->setDescription('Translate localized content')
             ->addOption('from', null, InputOption::VALUE_OPTIONAL, 'From language code', 'en')
             ->addOption('to', null, InputOption::VALUE_OPTIONAL, 'To language code', 'fr')
-            ->addOption('no-fuzzy', null, InputOption::VALUE_NONE, 'Do not flag automatic translations as fuzzy');
+            ->addOption('no-fuzzy', null, InputOption::VALUE_NONE, 'Do not flag automatic translations as fuzzy')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Only show stats and exits');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
@@ -38,9 +39,10 @@ class TranslateCommand extends Command
         $this->from = $input->getOption('from');
         $this->to = $input->getOption('to');
         $dontFlag = $input->getOption('no-fuzzy');
+        $dryRun = $input->getOption('dry-run');
 
         $assets = [];
-        $allAssets = $this->locoQuery('GET', 'export/locale/'.$this->to.'.json');
+        $allAssets = $this->locoQuery('GET', 'export/locale/'.$this->to.'.json', ['no-folding' => 1]);
 
         foreach ($allAssets as $assetId => $string) {
             if (empty($string)) {
@@ -49,6 +51,10 @@ class TranslateCommand extends Command
         }
 
         $output->writeln(sprintf('<info>Found %s assets, %s needs to be translated to %s (source %s)</info>', count($allAssets), count($assets), $this->to, $this->from));
+
+        if ($dryRun) {
+            return 0;
+        }
 
         foreach ($assets as $assetId) {
             $data = $this->locoQuery('GET', 'translations/'.$assetId.'/'.$this->to);
