@@ -30,6 +30,7 @@ class TranslateCommand extends Command
             ->addOption('from', null, InputOption::VALUE_OPTIONAL, 'From language code', 'en')
             ->addOption('to', null, InputOption::VALUE_OPTIONAL, 'To language code', 'fr')
             ->addOption('no-fuzzy', null, InputOption::VALUE_NONE, 'Do not flag automatic translations as fuzzy')
+            ->addOption('all', null, InputOption::VALUE_NONE, 'Update all translations')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Only show stats and exits');
     }
 
@@ -39,13 +40,14 @@ class TranslateCommand extends Command
         $this->from = $input->getOption('from');
         $this->to = $input->getOption('to');
         $dontFlag = $input->getOption('no-fuzzy');
+        $translateAll = $input->getOption('all');
         $dryRun = $input->getOption('dry-run');
 
         $assets = [];
         $allAssets = $this->locoQuery('GET', 'export/locale/'.$this->to.'.json', ['no-folding' => 1]);
 
         foreach ($allAssets as $assetId => $string) {
-            if (empty($string)) {
+            if (empty($string) || $translateAll) {
                 $assets[] = $assetId;
             }
         }
@@ -58,16 +60,40 @@ class TranslateCommand extends Command
 
         foreach ($assets as $assetId) {
             $data = $this->locoQuery('GET', 'translations/'.$assetId.'/'.$this->to);
-            $output->writeln('Fetching '.$assetId.'…');
             if (!$data['translated']) {
                 $source = $this->locoQuery('GET', 'translations/'.$assetId.'/'.$this->from);
-                dump($source['translation']);
-                $translation = $this->deeplQuery('GET', 'translate', ['text' => $source['translation'], 'source_lang' => strtoupper($this->from), 'target_lang' => strtoupper($this->to)]);
-                dump($translation['translations'][0]['text']);
+
+                $output->writeln('Translating '.$assetId.'…');
+
+                $toTranslate = preg_replace('/%([^% ]+)%/', '<var>$1</var>', $source['translation']);
+
+                $toTranslate = str_replace([
+                    '[0,1]',
+                    '{0}',
+                    '{1}',
+                    '|]1,Inf[',
+                ], [
+                    '<syntax>[0,1]</syntax>',
+                    '<syntax>{0}</syntax>',
+                    '<syntax>{1}</syntax>',
+                    '<syntax>|]1,Inf[</syntax>',
+                ], $toTranslate);
+
+                dump($toTranslate);
+
+                $translation = $this->deeplQuery('GET', 'translate', ['text' => $toTranslate, 'source_lang' => strtoupper($this->from), 'target_lang' => strtoupper($this->to)]);
+
+                $translatedString = preg_replace('/\<var\>([^<]+)\<\/var\>/', '%$1%', $translation['translations'][0]['text']);
+                $translatedString = preg_replace('/\<syntax\>([^<]+)\<\/syntax\>/', '$1', $translatedString);
+
+                dump($translatedString);
+
                 $result = $this->locoQuery('POST', 'translations/'.$assetId.'/'.$this->to, ['data' => $translation['translations'][0]['text']]);
+
                 if ($output->isVerbose()) {
                     dump($result);
                 }
+
                 if (!$dontFlag) {
                     $result = $this->locoQuery('POST', 'translations/'.$assetId.'/'.$this->to.'/flag', ['flag' => 'fuzzy']);
                     if ($output->isVerbose()) {
@@ -119,6 +145,10 @@ class TranslateCommand extends Command
         ];
 
         $query['auth_key'] = $deeplKey;
+
+        $query['tag_handling'] = 'xml';
+        $query['ignore_tags'] = 'var,syntax,a,strong,p,br';
+
         $path .= '?'.http_build_query($query);
 
         $res = $this->client->request($method, 'https://api.deepl.com/v2/'.$path, $params);
