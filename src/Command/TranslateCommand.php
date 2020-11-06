@@ -46,9 +46,14 @@ class TranslateCommand extends Command
         $assets = [];
         $allAssets = $this->locoQuery('GET', 'export/locale/'.$this->to.'.json', ['no-folding' => 1]);
 
-        foreach ($allAssets as $assetId => $string) {
-            if (empty($string) || $translateAll) {
-                $assets[] = $assetId;
+        foreach ($allAssets as $assetId => $strings) {
+            if (!is_array($strings)) {
+                $strings = [$strings];
+            }
+            foreach ($strings as $string) {
+                if (empty($string) || $translateAll || strpos($string, '<syntax>') !== false || strpos($string, '<var>') !== false) {
+                    $assets[] = $assetId;
+                }
             }
         }
 
@@ -59,46 +64,43 @@ class TranslateCommand extends Command
         }
 
         foreach ($assets as $assetId) {
-            $data = $this->locoQuery('GET', 'translations/'.$assetId.'/'.$this->to);
-            if (!$data['translated']) {
-                $source = $this->locoQuery('GET', 'translations/'.$assetId.'/'.$this->from);
+            $source = $this->locoQuery('GET', 'translations/'.$assetId.'/'.$this->from);
 
-                $output->writeln('Translating '.$assetId.'…');
+            $output->writeln('Translating '.$assetId.'…');
 
-                $toTranslate = preg_replace('/%([^% ]+)%/', '<var>$1</var>', $source['translation']);
+            $toTranslate = preg_replace('/%([^% ]+)%/', '<var>$1</var>', $source['translation']);
 
-                $toTranslate = str_replace([
-                    '[0,1]',
-                    '{0}',
-                    '{1}',
-                    '|]1,Inf[',
-                ], [
-                    '<syntax>[0,1]</syntax>',
-                    '<syntax>{0}</syntax>',
-                    '<syntax>{1}</syntax>',
-                    '<syntax>|]1,Inf[</syntax>',
-                ], $toTranslate);
+            $toTranslate = str_replace([
+                '[0,1]',
+                '{0}',
+                '{1}',
+                '|]1,Inf[',
+            ], [
+                '<syntax>[0,1]</syntax>',
+                '<syntax>{0}</syntax>',
+                '<syntax>{1}</syntax>',
+                '<syntax>|]1,Inf[</syntax>',
+            ], $toTranslate);
 
-                dump($toTranslate);
+            dump($toTranslate);
 
-                $translation = $this->deeplQuery('GET', 'translate', ['text' => $toTranslate, 'source_lang' => strtoupper($this->from), 'target_lang' => strtoupper($this->to)]);
+            $translation = $this->deeplQuery('GET', 'translate', ['text' => $toTranslate, 'source_lang' => strtoupper($this->from), 'target_lang' => strtoupper($this->to)]);
 
-                $translatedString = preg_replace('/\<var\>([^<]+)\<\/var\>/', '%$1%', $translation['translations'][0]['text']);
-                $translatedString = preg_replace('/\<syntax\>([^<]+)\<\/syntax\>/', '$1', $translatedString);
+            $translatedString = preg_replace('/\<var\>([^<]+)\<\/var\>/', '%$1%', $translation['translations'][0]['text']);
+            $translatedString = preg_replace('/\<syntax\>([^<]+)\<\/syntax\>/', '$1', $translatedString);
 
-                dump($translatedString);
+            dump($translatedString);
 
-                $result = $this->locoQuery('POST', 'translations/'.$assetId.'/'.$this->to, ['data' => $translation['translations'][0]['text']]);
+            $result = $this->locoQuery('POST', 'translations/'.$assetId.'/'.$this->to, ['data' => $translatedString]);
 
+            if ($output->isVerbose()) {
+                dump($result);
+            }
+
+            if (!$dontFlag) {
+                $result = $this->locoQuery('POST', 'translations/'.$assetId.'/'.$this->to.'/flag', ['flag' => 'fuzzy']);
                 if ($output->isVerbose()) {
                     dump($result);
-                }
-
-                if (!$dontFlag) {
-                    $result = $this->locoQuery('POST', 'translations/'.$assetId.'/'.$this->to.'/flag', ['flag' => 'fuzzy']);
-                    if ($output->isVerbose()) {
-                        dump($result);
-                    }
                 }
             }
         }
