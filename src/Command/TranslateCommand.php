@@ -31,6 +31,7 @@ class TranslateCommand extends Command
             ->addOption('to', null, InputOption::VALUE_OPTIONAL, 'To language code', 'fr')
             ->addOption('no-fuzzy', null, InputOption::VALUE_NONE, 'Do not flag automatic translations as fuzzy')
             ->addOption('all', null, InputOption::VALUE_NONE, 'Update all translations')
+            ->addOption('prefix', null, InputOption::VALUE_OPTIONAL, 'Translate only starting with the prefix')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Only show stats and exits');
     }
 
@@ -41,12 +42,16 @@ class TranslateCommand extends Command
         $this->to = $input->getOption('to');
         $dontFlag = $input->getOption('no-fuzzy');
         $translateAll = $input->getOption('all');
+        $prefix = $input->getOption('prefix');
         $dryRun = $input->getOption('dry-run');
 
         $assets = [];
         $allAssets = $this->locoQuery('GET', 'export/locale/'.$this->to.'.json', ['no-folding' => 1]);
 
         foreach ($allAssets as $assetId => $strings) {
+            if ($prefix && substr($assetId, 0, strlen($prefix)) != $prefix) {
+                continue;
+            }
             if (!is_array($strings)) {
                 $strings = [$strings];
             }
