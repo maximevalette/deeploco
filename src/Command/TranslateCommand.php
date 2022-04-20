@@ -58,6 +58,11 @@ class TranslateCommand extends Command
             foreach ($strings as $string) {
                 if (empty($string) || $translateAll || strpos($string, '<syntax>') !== false || strpos($string, '<var>') !== false) {
                     $assets[] = $assetId;
+
+                    if ($output->isVerbose()) {
+                        dump($assetId);
+                        dump($strings);
+                    }
                 }
             }
         }
@@ -71,46 +76,63 @@ class TranslateCommand extends Command
         foreach ($assets as $assetId) {
             $source = $this->locoQuery('GET', 'translations/'.$assetId.'/'.$this->from);
 
-            $output->writeln('Translating '.$assetId.'…');
-
-            $toTranslate = preg_replace('/%([^% ]+)%/', '<var>$1</var>', $source['translation']);
-
-            $toTranslate = str_replace([
-                '[0,1]',
-                '{0}',
-                '{1}',
-                '|]1,Inf[',
-            ], [
-                '<syntax>[0,1]</syntax>',
-                '<syntax>{0}</syntax>',
-                '<syntax>{1}</syntax>',
-                '<syntax>|]1,Inf[</syntax>',
-            ], $toTranslate);
-
-            dump($toTranslate);
-
-            $translation = $this->deeplQuery('GET', 'translate', ['text' => $toTranslate, 'source_lang' => strtoupper($this->from), 'target_lang' => strtoupper($this->to)]);
-
-            $translatedString = preg_replace('/\<var\>([^<]+)\<\/var\>/', '%$1%', $translation['translations'][0]['text']);
-            $translatedString = preg_replace('/\<syntax\>([^<]+)\<\/syntax\>/', '$1', $translatedString);
-
-            dump($translatedString);
-
-            $result = $this->locoQuery('POST', 'translations/'.$assetId.'/'.$this->to, ['data' => $translatedString]);
-
             if ($output->isVerbose()) {
-                dump($result);
+                dump($source);
             }
 
-            if (!$dontFlag) {
+            $this->translateString($output, $source);
+
+            if (count($source['plurals'])) {
+                foreach ($source['plurals'] as $plural) {
+                    $this->translateString($output, $plural);
+                }
+            }
+
+            if (!$dontFlag && !empty($translatedString)) {
                 $result = $this->locoQuery('POST', 'translations/'.$assetId.'/'.$this->to.'/flag', ['flag' => 'fuzzy']);
                 if ($output->isVerbose()) {
                     dump($result);
                 }
             }
+
+            die;
         }
 
         return 0;
+    }
+
+    protected function translateString($output, $source)
+    {
+        $output->writeln('Translating '.$source['id'].'…');
+
+        $toTranslate = preg_replace('/%([^% ]+)%/', '<var>$1</var>', $source['translation']);
+
+        $toTranslate = str_replace([
+            '[0,1]',
+            '{0}',
+            '{1}',
+            '|]1,Inf[',
+        ], [
+            '<syntax>[0,1]</syntax>',
+            '<syntax>{0}</syntax>',
+            '<syntax>{1}</syntax>',
+            '<syntax>|]1,Inf[</syntax>',
+        ], $toTranslate);
+
+        dump($toTranslate);
+
+        $translation = $this->deeplQuery('GET', 'translate', ['text' => $toTranslate, 'source_lang' => strtoupper($this->from), 'target_lang' => strtoupper($this->to)]);
+
+        $translatedString = preg_replace('/\<var\>([^<]+)\<\/var\>/', '%$1%', $translation['translations'][0]['text']);
+        $translatedString = preg_replace('/\<syntax\>([^<]+)\<\/syntax\>/', '$1', $translatedString);
+
+        dump($translatedString);
+
+        $result = $this->locoQuery('POST', 'translations/'.$source['id'].'/'.$this->to, ['data' => $translatedString]);
+
+        if ($output->isVerbose()) {
+            dump($result);
+        }
     }
 
     protected function locoQuery($method, $path, $query = [])
