@@ -94,8 +94,6 @@ class TranslateCommand extends Command
                     dump($result);
                 }
             }
-
-            die;
         }
 
         return 0;
