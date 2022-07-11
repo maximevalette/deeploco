@@ -86,6 +86,10 @@ class TranslateCommand extends Command
                 foreach ($source['plurals'] as $plural) {
                     $this->translateString($output, $plural);
                 }
+
+                if ($source['locale']['plurals']['length'] < $this->numberOfPlurals($this->to)) {
+                    $output->writeln(sprintf('<error>You should create a new plural form for %s (%s)</error>', $source['id'], $this->to));
+                }
             }
 
             if (!$dontFlag && !empty($translatedString)) {
@@ -131,6 +135,8 @@ class TranslateCommand extends Command
         if ($output->isVerbose()) {
             dump($result);
         }
+
+        return $translatedString;
     }
 
     protected function locoQuery($method, $path, $query = [])
@@ -184,5 +190,16 @@ class TranslateCommand extends Command
         $data = json_decode($json, true);
 
         return $data;
+    }
+
+    protected function numberOfPlurals($lang)
+    {
+        $lang = strtolower($lang);
+
+        if ($lang === 'pl') {
+            return 3;
+        }
+
+        return 2;
     }
 }
