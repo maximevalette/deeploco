@@ -30,7 +30,7 @@ class TranslateCommand extends Command
             ->addOption('from', null, InputOption::VALUE_OPTIONAL, 'From language code', 'en')
             ->addOption('to', null, InputOption::VALUE_OPTIONAL, 'To language code', 'fr')
             ->addOption('no-fuzzy', null, InputOption::VALUE_NONE, 'Do not flag automatic translations as fuzzy')
-            ->addOption('all', null, InputOption::VALUE_NONE, 'Update all translations')
+            ->addOption('force', 'f', InputOption::VALUE_NONE, 'Update all translations')
             ->addOption('prefix', null, InputOption::VALUE_OPTIONAL, 'Translate only starting with the prefix')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Only show stats and exits');
     }
@@ -41,7 +41,7 @@ class TranslateCommand extends Command
         $this->from = $input->getOption('from');
         $this->to = $input->getOption('to');
         $dontFlag = $input->getOption('no-fuzzy');
-        $translateAll = $input->getOption('all');
+        $translateAll = $input->getOption('force');
         $prefix = $input->getOption('prefix');
         $dryRun = $input->getOption('dry-run');
 
