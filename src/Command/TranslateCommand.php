@@ -127,6 +127,7 @@ class TranslateCommand extends Command
 
         $translatedString = preg_replace('/\<var\>([^<]+)\<\/var\>/', '%$1%', $translation['translations'][0]['text']);
         $translatedString = preg_replace('/\<syntax\>([^<]+)\<\/syntax\>/', '$1', $translatedString);
+        $translatedString = preg_replace('/\[([0-9]+)\.([0-9]+)\]/', '[$1,$2]', $translatedString);
 
         dump($translatedString);
 
