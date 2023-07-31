@@ -30,7 +30,8 @@ class TranslateCommand extends Command
             ->addOption('from', null, InputOption::VALUE_OPTIONAL, 'From language code', 'en')
             ->addOption('to', null, InputOption::VALUE_OPTIONAL, 'To language code', 'fr')
             ->addOption('no-fuzzy', null, InputOption::VALUE_NONE, 'Do not flag automatic translations as fuzzy')
-            ->addOption('force', 'f', InputOption::VALUE_NONE, 'Update all translations')
+            ->addOption('translate-all', null, InputOption::VALUE_NONE, 'Update all translations')
+            ->addOption('fuzzy-only', null, InputOption::VALUE_NONE, 'Only translate fuzzy strings')
             ->addOption('prefix', null, InputOption::VALUE_OPTIONAL, 'Translate only starting with the prefix')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Only show stats and exits');
     }
@@ -41,12 +42,19 @@ class TranslateCommand extends Command
         $this->from = $input->getOption('from');
         $this->to = $input->getOption('to');
         $dontFlag = $input->getOption('no-fuzzy');
-        $translateAll = $input->getOption('force');
         $prefix = $input->getOption('prefix');
         $dryRun = $input->getOption('dry-run');
+        $translateAll = $input->getOption('translate-all');
+        $fuzzyOnly = $input->getOption('fuzzy-only');
 
         $assets = [];
-        $allAssets = $this->locoQuery('GET', 'export/locale/'.$this->to.'.json', ['no-folding' => 1]);
+        $exportParams = ['no-folding' => 1];
+
+        if ($fuzzyOnly) {
+            $exportParams['status'] = 'fuzzy';
+        }
+
+        $allAssets = $this->locoQuery('GET', 'export/locale/'.$this->to.'.json', $exportParams);
 
         foreach ($allAssets as $assetId => $strings) {
             if ($prefix && substr($assetId, 0, strlen($prefix)) != $prefix) {
@@ -123,7 +131,13 @@ class TranslateCommand extends Command
 
         dump($toTranslate);
 
-        $translation = $this->deeplQuery('GET', 'translate', ['text' => $toTranslate, 'source_lang' => strtoupper($this->from), 'target_lang' => strtoupper($this->to)]);
+        $params = ['text' => $toTranslate, 'source_lang' => strtoupper($this->from), 'target_lang' => strtoupper($this->to)];
+
+        if (in_array($this->to, ['it', 'de'])) {
+            $params['formality'] = 'less';
+        }
+
+        $translation = $this->deeplQuery('GET', 'translate', $params);
 
         $translatedString = preg_replace('/\<var\>([^<]+)\<\/var\>/', '%$1%', $translation['translations'][0]['text']);
         $translatedString = preg_replace('/\<syntax\>([^<]+)\<\/syntax\>/', '$1', $translatedString);
