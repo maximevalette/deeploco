@@ -131,13 +131,13 @@ class TranslateCommand extends Command
 
         dump($toTranslate);
 
-        $params = ['text' => $toTranslate, 'source_lang' => strtoupper($this->from), 'target_lang' => strtoupper($this->to)];
+        $params = ['text' => [$toTranslate], 'source_lang' => strtoupper($this->from), 'target_lang' => strtoupper($this->to)];
 
         if (in_array($this->to, ['it', 'de'])) {
             $params['formality'] = 'less';
         }
 
-        $translation = $this->deeplQuery('GET', 'translate', $params);
+        $translation = $this->deeplQuery('POST', 'translate', $params);
 
         $translatedString = preg_replace('/\<var\>([^<]+)\<\/var\>/', '%$1%', $translation['translations'][0]['text']);
         $translatedString = preg_replace('/\<syntax\>([^<]+)\<\/syntax\>/', '$1', $translatedString);
@@ -189,15 +189,19 @@ class TranslateCommand extends Command
         $params = [
             'headers' => [
                 'User-Agent' => 'deeploco (maxime@maximevalette.com)',
+                'Authorization' => 'DeepL-Auth-Key '.$deeplKey
             ]
         ];
 
-        $query['auth_key'] = $deeplKey;
-
         $query['tag_handling'] = 'xml';
-        $query['ignore_tags'] = 'var,syntax,a,strong,p,br';
+        $query['ignore_tags'] = ['var', 'syntax', 'a', 'strong', 'p', 'br'];
 
-        $path .= '?'.http_build_query($query);
+        if ($method === 'GET') {
+            $path .= '?'.http_build_query($query);
+        } elseif ($method === 'POST') {
+            $params['headers']['Content-Type'] = 'application/json';
+            $params['json'] = $query;
+        }
 
         $res = $this->client->request($method, 'https://api.deepl.com/v2/'.$path, $params);
 
